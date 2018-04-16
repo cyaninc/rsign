@@ -29,14 +29,21 @@ class TestRequest(unittest.TestCase):
 
     def test_request_valid(self):
         ''' Validate the request header validates correctly '''
-        auth_header = self.request.get_signed_header(self.nonce, self.timestamp, self.key_id, self.key)
-        self.assertTrue(self.request.verify_signed_header(auth_header[1], self.key),
+        self.assertTrue(self.request.verify_signed_header(self._auth_header()[1], self.key),
                         "Verify a signed request header authenticates properly.")
-        self.assertFalse(self.request.verify_signed_header(auth_header[1], self.key[:-1]),
+
+    def test_rejects_tampered_key(self):
+        self.assertFalse(self.request.verify_signed_header(self._auth_header()[1], self.key[:-1]),
                          "Verify a tampered with key or request doesn't verify properly")
-        self.request.method = "GET"
-        self.assertFalse(self.request.verify_signed_header(auth_header[1], self.key),
+
+    def test_rejects_tampered_method(self):
+        headers = self._auth_header()
+        self.request.method = "GET"  # different from the method we signed
+        self.assertFalse(self.request.verify_signed_header(headers[1], self.key),
                          "Verify a tampered with key or request doesn't verify properly")
+
+    def test_rejects_tampered_path(self):
+        auth_header = self._auth_header()
         self.request.method, self.request.path = "POST", "/not/path"
         self.assertFalse(self.request.verify_signed_header(auth_header[1], self.key),
                          "Verify a tampered with key or request doesn't verify properly")
@@ -53,6 +60,18 @@ class TestRequest(unittest.TestCase):
         expect = dict(id="123", ts="123", nonce="nonce", mac="2tduYjW+ZTdQyN/aOQxk3fVBnaaNs5qMmnDVIfvp16g=")
         actual = get_auth_header_values(header)
         self.assertEqual(expect, actual, 'Assert header values are equivalent')
+
+    def test_verify_signature_changes(self):
+        self.request.method = 'POST'
+        sig1 = self.request.sign_request(self.nonce, self.timestamp, self.key)
+
+        self.request.method = 'GET'
+        sig2 = self.request.sign_request(self.nonce, self.timestamp, self.key)
+
+        self.assertNotEqual(sig1, sig2)
+
+    def _auth_header(self):
+        return self.request.get_signed_header(self.nonce, self.timestamp, self.key_id, self.key)
 
 
 if __name__ == '__main__':

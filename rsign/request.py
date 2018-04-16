@@ -1,6 +1,8 @@
 # Copyright(c) 2014, Cyan, Inc. All rights reserved.
-from rsign.signature import HMACBase64Signature
 import re
+
+from rsign.signature import HMACBase64Signature
+from rsign._version import PY3
 
 
 def get_auth_header_values(header_string):
@@ -14,7 +16,7 @@ def normalize(timestamp, nonce, method, path, host, port):  # pylint: disable=R0
     """ Accepts args as strings and returns the normalized form for signing """
     normalized = '\n'.join([
         timestamp,
-        nonce,
+        nonce.decode() if PY3 and isinstance(nonce, bytes) else nonce,
         method.upper(),
         path,
         host.lower(),
@@ -35,8 +37,12 @@ class SignedRequest(object):
     def get_signed_header(self, nonce, timestamp, key_id, key):
         """ Returns the Authorization header as a tuple """
         signature = self.sign_request(nonce, timestamp, key)
+
+        def conv(x):
+            return x.decode() if PY3 and isinstance(x, bytes) else x
+
         header = 'MAC id="{}", ts="{}", nonce="{}", '\
-            'mac="{}"'.format(key_id, timestamp, nonce, signature)
+            'mac="{}"'.format(conv(key_id), timestamp, conv(nonce), conv(signature))
         return ('Authorization', header)
 
     def verify_signed_header(self, header_string, key):
