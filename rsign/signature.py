@@ -3,6 +3,8 @@ import hmac
 import hashlib
 import binascii
 
+from rsign._version import PY3
+
 
 def _clean(string):
     """ Unicode to Byte conversion """
@@ -70,7 +72,10 @@ class HMACSignature(Signature):
     def sign_string(self, key, text):
         """ Return the signing method's digest """
         key, text = _clean(key), _clean(text)
-        return hmac.new(key, text, self.hash_fn).digest()
+        # Py3 hmac.new expects key as bytes. py2 expects str
+        key3 = key.encode() if PY3 and isinstance(key, str) else key
+        text3 = text.encode() if PY3 and isinstance(text, str) else text
+        return hmac.new(key3, text3, self.hash_fn).digest()
 
 
 class Base64Mixin(Signature):
@@ -86,7 +91,13 @@ class Base64Mixin(Signature):
     def sign_string(self, key, text):
         """ Return the signing method's digest """
         binary = super(Base64Mixin, self).sign_string(key, text)
-        return binascii.b2a_base64(binary).replace('\n', '')
+        # Py2 binascii.b2a_base64 gives us str, so str replacement
+        # Py3 gives us bytes, so we can only replace with bytes
+        newline = '\n'.encode() if PY3 else '\n'
+        empty = ''.encode() if PY3 else ''
+        signature = binascii.b2a_base64(binary).replace(newline, empty)
+
+        return signature
 
 
 class HMACBase64Signature(Base64Mixin, HMACSignature):
